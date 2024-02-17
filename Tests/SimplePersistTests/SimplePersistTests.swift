@@ -11,13 +11,33 @@ extension String:StringPersistable {
 final class SimplePersistTests: XCTestCase {
     let file = Bundle.main.url(forResource: "lines", withExtension: "txt")
 
+    //This test is less useful on Linux where Date's +0000 doesn't seem to be a thing.
+    //Linux date doesn't go beyond the second. 
+    //Move the test up higher just incase the other tests can thread. 
+    func testLastModified() async throws {
+        let before = Date.now
+        //for linux no sub second resolution. (1/2 a second)
+        try await Task.sleep(nanoseconds: 500000000)
+        let bundlePath =  Bundle.module.bundleURL 
+        let demo = bundlePath.appending(path: "modifiedDemo.txt")
+        let persistor = BasicTextPersistor<String>(storageUrl: demo)
+        try await persistor.write(contentsOf: ["this", "is", "how the", "world", "ends"])
+        let modDate = try await persistor.lastModified()
+        XCTAssertLessThan(before, modDate, "\(before) was not before \(modDate)")
+        //for linux no sub second resolution. (1/2 a second)
+        try await Task.sleep(nanoseconds: 500000000)
+        let after = Date.now 
+        XCTAssertLessThan(modDate, after,"\(after) was not after \(modDate)")
+    }
+
+
     func testTouch() {
 
-        //let bundlePath = URL(filePath: Bundle.module.bundlePath)
+        //let bundlePath = Bundle.module.bundleURL
                                                         // .deletingLastPathComponent()
                                                         // .path()
 
-         let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
+        let bundlePath = Bundle.module.bundleURL
             let toTouch = bundlePath.appending(path: "touch.txt")
             BasicTextPersistor<String>.touch(toTouch)
         
@@ -28,6 +48,9 @@ final class SimplePersistTests: XCTestCase {
         XCTAssertNotNil(exists, "touched file not found \(String(describing:exists))")
     }
 
+
+
+
     func testInit() async throws {
         let demo = Bundle.module.url(forResource: "strings", withExtension: "txt") 
         let persistor = BasicTextPersistor<String>(storageUrl: demo!)
@@ -36,7 +59,7 @@ final class SimplePersistTests: XCTestCase {
     }
 
     func testMakeBlob() async throws {
-        let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
+        let bundlePath =  Bundle.module.bundleURL 
         let demo = bundlePath.appending(path: "blobDemo.txt")
         let persistor = BasicTextPersistor<String>(storageUrl: demo)
         try await persistor.write(contentsOf: ["this", "is", "how the", "world", "ends"])
@@ -45,7 +68,7 @@ final class SimplePersistTests: XCTestCase {
     }
 
     func testAppendBlob() async throws {
-        let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
+        let bundlePath =  Bundle.module.bundleURL 
         let demo = bundlePath.appending(path: "appendBlobDemo.txt")
         let persistor = BasicTextPersistor<String>(storageUrl: demo)
         try await persistor.write(contentsOf: ["this", "is", "how the", "world", "ends"])
@@ -57,7 +80,7 @@ final class SimplePersistTests: XCTestCase {
     }
 
     func testAppendItem() async throws {
-        let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
+        let bundlePath =  Bundle.module.bundleURL 
         let demo = bundlePath.appending(path: "appendItemDemo.txt")
         let persistor = BasicTextPersistor<String>(storageUrl: demo)
         try await persistor.write(contentsOf: ["this", "is", "how the", "world", "ends"])
@@ -68,17 +91,6 @@ final class SimplePersistTests: XCTestCase {
         XCTAssertEqual(moarVals[5], "... with chex mix!", "expected chex mix, got \(moarVals[5]). \(moarVals)")
     }
 
-    func testLastModified() async throws {
-        let before = Date.now
-        let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
-        let demo = bundlePath.appending(path: "modifiedDemo.txt")
-        let persistor = BasicTextPersistor<String>(storageUrl: demo)
-        try await persistor.write(contentsOf: ["this", "is", "how the", "world", "ends"])
-        let modDate = try await persistor.lastModified()
-        XCTAssertLessThan(before, modDate, "\(before) was not before \(modDate)")
-        let after = Date.now 
-        XCTAssertLessThan(modDate, after,"\(after) was not after \(modDate)")
-    }
 
     func testSize() async throws {
         let demo = Bundle.module.url(forResource: "strings", withExtension: "txt")!
@@ -87,3 +99,5 @@ final class SimplePersistTests: XCTestCase {
         XCTAssertEqual(fileSize, 30, "expected 30 got \(String(describing:fileSize))")
     }
 }
+
+
