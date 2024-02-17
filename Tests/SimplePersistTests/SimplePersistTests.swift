@@ -19,7 +19,7 @@ final class SimplePersistTests: XCTestCase {
 
          let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
             let toTouch = bundlePath.appending(path: "touch.txt")
-            TextFilePersistor<String>.touch(toTouch)
+            BasicTextPersistor<String>.touch(toTouch)
         
         let demo = Bundle.module.url(forResource: "empty", withExtension: "txt")
         XCTAssertNotNil(demo, "demo file not found \(String(describing:demo))")
@@ -30,7 +30,7 @@ final class SimplePersistTests: XCTestCase {
 
     func testInit() async throws {
         let demo = Bundle.module.url(forResource: "strings", withExtension: "txt") 
-        let persistor = TextFilePersistor<String>(storageUrl: demo!)
+        let persistor = BasicTextPersistor<String>(storageUrl: demo!)
         let values = try await persistor.retrieve()
         XCTAssertEqual(values[0], "hello", "expected hello, got \(values[0])")
     }
@@ -38,7 +38,7 @@ final class SimplePersistTests: XCTestCase {
     func testMakeBlob() async throws {
         let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
         let demo = bundlePath.appending(path: "blobDemo.txt")
-        let persistor = TextFilePersistor<String>(storageUrl: demo)
+        let persistor = BasicTextPersistor<String>(storageUrl: demo)
         try await persistor.write(contentsOf: ["this", "is", "how the", "world", "ends"])
         let values = await persistor.retrieveAvailable()
         XCTAssertEqual(values[3], "world", "expected world, got \(values[3])")
@@ -47,7 +47,7 @@ final class SimplePersistTests: XCTestCase {
     func testAppendBlob() async throws {
         let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
         let demo = bundlePath.appending(path: "appendBlobDemo.txt")
-        let persistor = TextFilePersistor<String>(storageUrl: demo)
+        let persistor = BasicTextPersistor<String>(storageUrl: demo)
         try await persistor.write(contentsOf: ["this", "is", "how the", "world", "ends"])
         let values = try await persistor.retrieve()
         XCTAssertEqual(values[3], "world", "expected world, got \(values[3])")
@@ -59,7 +59,7 @@ final class SimplePersistTests: XCTestCase {
     func testAppendItem() async throws {
         let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
         let demo = bundlePath.appending(path: "appendItemDemo.txt")
-        let persistor = TextFilePersistor<String>(storageUrl: demo)
+        let persistor = BasicTextPersistor<String>(storageUrl: demo)
         try await persistor.write(contentsOf: ["this", "is", "how the", "world", "ends"])
         let values = try await persistor.retrieve()
         XCTAssertEqual(values[3], "world", "expected world, got \(values[3])")
@@ -72,7 +72,7 @@ final class SimplePersistTests: XCTestCase {
         let before = Date.now
         let bundlePath =  URL(filePath: Bundle.module.bundlePath) 
         let demo = bundlePath.appending(path: "modifiedDemo.txt")
-        let persistor = TextFilePersistor<String>(storageUrl: demo)
+        let persistor = BasicTextPersistor<String>(storageUrl: demo)
         try await persistor.write(contentsOf: ["this", "is", "how the", "world", "ends"])
         let modDate = try await persistor.lastModified()
         XCTAssertLessThan(before, modDate, "\(before) was not before \(modDate)")
@@ -82,7 +82,7 @@ final class SimplePersistTests: XCTestCase {
 
     func testSize() async throws {
         let demo = Bundle.module.url(forResource: "strings", withExtension: "txt")!
-        let persistor = TextFilePersistor<String>(storageUrl: demo)
+        let persistor = BasicTextPersistor<String>(storageUrl: demo)
         let fileSize = try await persistor.size()
         XCTAssertEqual(fileSize, 30, "expected 30 got \(String(describing:fileSize))")
     }

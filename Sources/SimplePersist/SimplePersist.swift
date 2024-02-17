@@ -18,7 +18,7 @@ enum PersitorError:Error {
     case stringNotDataEncodable
 }
 
-public actor TextFilePersistor<Element:StringPersistable> {
+public actor BasicTextPersistor<Element:StringPersistable> {
     private let fm = FileManager.default
     private(set) var separator:String
     private(set) var encoding:String.Encoding = .utf8
