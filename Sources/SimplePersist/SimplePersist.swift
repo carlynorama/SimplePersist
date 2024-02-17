@@ -3,14 +3,10 @@
 
 import Foundation
 
-public protocol StringPersistable:LosslessStringConvertible {
+public protocol StringPersistable:LosslessStringConvertible, Sendable {
     //the losses strings can't have \n
     init?(_ description: some StringProtocol)
 }
-
-//public protocol TextFilePersistable<Element>:Sequence, LosslessStringConvertible
-//where Element:StringPersistable {}
-
 
 enum PersistorError:Error {
     case unknownError(message: String)
@@ -79,7 +75,6 @@ public actor BasicTextPersistor<Element:StringPersistable> {
     }
     
     //this is async for the actor, not the file i/o
-    //
     @available(macOS 13.0, iOS 16.0, *)
     public func retrieve() async throws -> [Element] {
         let string = try String(contentsOf: storageUrl)
@@ -98,6 +93,9 @@ public actor BasicTextPersistor<Element:StringPersistable> {
     }
     
     public func lastModified() throws -> Date {
+        //works in linux?
+        //if let date = try storageUrl.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        
         let attribute = try fm.attributesOfItem(atPath: storageUrl.path)
         if let date =  attribute[FileAttributeKey.modificationDate] as? Date {
             return date
@@ -118,72 +116,3 @@ public actor BasicTextPersistor<Element:StringPersistable> {
         }
     }
 }
-
-
-
-
-//
-//    associatedtype Storage: Sequence<Element>
-//    var values: Storage { get }
-//    //init(_ values:some Sequence<Element>)
-//    init(_ values:[Element])
-//    static func makeArray(from string:String) -> [Element]
-//    
-//    func writeAll(to fileURL:URL)
-//    init?(contentsOf fileURL:URL)
-//
-//}
-//
-//extension TextFilePersistable {
-//    var description: String {
-//        self.values.map{ $0.description }.joined(separator: "\n")
-//    }
-//
-//    init?(_ description: String) {
-//       let tmp = description.split(separator: "\n").compactMap({
-//            Element.init($0)
-//        })
-//       if tmp.isEmpty {
-//           return nil
-//       } else {
-//           self.init(tmp)
-//       }
-//    }
-//
-//    static func makeArray(from string:String) -> [Element] {
-//        string.split(separator: "\n").compactMap({
-//            Element.init($0)
-//        })
-//    }
-//
-//    init?(contentsOf fileURL:URL) {
-//        guard let string = try? String(contentsOf: fileURL) else {
-//            return nil
-//        }
-//        self.init(string)
-//    }
-//
-//    func writeAll(to fileURL:URL) throws {
-//        try description.write(to: fileURL, atomically: true, encoding: .utf8)
-//    }
-//}
-//
-//
-//public protocol MutableTextFilePersistable:TextFilePersistable where Self:MutableCollection {
-//    mutating func updateValues(from fileURL:URL) throws
-//    mutating func updateValues(to: some Collection<Element>)
-//    mutating func append(from fileURL:URL) throws
-//    mutating func append(contentsOf: some Sequence<Element>)
-//}
-//
-//extension MutableTextFilePersistable {
-//    mutating func updateValues(from fileURL:URL) throws {
-//        let string = try String(contentsOf: fileURL)
-//        updateValues(to: Self.makeArray(from:string))
-//    }
-//
-//    mutating func append(from fileURL:URL) throws {
-//        let string = try String(contentsOf: fileURL) 
-//        append(contentsOf: Self.makeArray(from:string))
-//    }
-//}
