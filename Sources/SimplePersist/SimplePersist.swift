@@ -12,7 +12,7 @@ public protocol StringPersistable:LosslessStringConvertible {
 //where Element:StringPersistable {}
 
 
-enum PersitorError:Error {
+enum PersistorError:Error {
     case unknownError(message: String)
     case fileAttributeUnavailable(_ attributeName:String)
     case stringNotDataEncodable
@@ -59,7 +59,7 @@ public actor BasicTextPersistor<Element:StringPersistable> {
         if let data = "\(separator)\(item.description)".data(using: encoding) {
             try appendData(data: data)
         } else {
-            throw PersitorError.stringNotDataEncodable
+            throw PersistorError.stringNotDataEncodable
         }
     }
     
@@ -67,7 +67,7 @@ public actor BasicTextPersistor<Element:StringPersistable> {
         if let data = "\(separator)\(makeBlob(from: contentsOf))".data(using: encoding) {
            try appendData(data: data)
         } else {
-            throw PersitorError.stringNotDataEncodable
+            throw PersistorError.stringNotDataEncodable
         }
     }
     
@@ -103,7 +103,7 @@ public actor BasicTextPersistor<Element:StringPersistable> {
         if let date =  attribute[FileAttributeKey.modificationDate] as? Date {
             return date
         } else {
-            throw PersitorError.fileAttributeUnavailable("modificationDate")
+            throw PersistorError.fileAttributeUnavailable("modificationDate")
         }
     }
     
@@ -115,7 +115,7 @@ public actor BasicTextPersistor<Element:StringPersistable> {
         if let size =  attribute[FileAttributeKey.size] as? Int {
             return size 
         } else {
-            throw PersitorError.fileAttributeUnavailable("size")
+            throw PersistorError.fileAttributeUnavailable("size")
         }
     }
 }
