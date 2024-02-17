@@ -79,8 +79,8 @@ public actor BasicTextPersistor<Element:StringPersistable> {
     }
     
     //this is async for the actor, not the file i/o
-    @available(iOS 16.0, *)
-    @available(macOS 13.0, *)
+    //
+    @available(macOS 13.0, iOS 16.0, *)
     public func retrieve() async throws -> [Element] {
         let string = try String(contentsOf: storageUrl)
         return string.split(separator: separator).compactMap({
@@ -88,8 +88,7 @@ public actor BasicTextPersistor<Element:StringPersistable> {
         })
     }
     
-    @available(iOS 16.0, *)
-    @available(macOS 13.0, *)
+    @available(macOS 13.0, iOS 16.0, *)
     public func retrieveAvailable() async -> [Element] {
         do {
             return try await retrieve()
