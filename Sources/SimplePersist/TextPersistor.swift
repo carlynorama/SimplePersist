@@ -1,6 +1,3 @@
-//this is async for the actor, not the file i/o
-//https://forums.swift.org/t/task-safe-way-to-write-a-file-asynchronously/54639/3
-
 import Foundation
 
 public protocol StringPersistable: LosslessStringConvertible, Sendable {
@@ -8,21 +5,11 @@ public protocol StringPersistable: LosslessStringConvertible, Sendable {
   init?(_ description: some StringProtocol)
 }
 
-enum PersistorError: Error {
-  case unknownError(message: String)
-  case fileAttributeUnavailable(_ attributeName: String)
-  case stringNotDataEncodable
-}
-
 public actor BasicTextPersistor<Element: StringPersistable> {
   private let fm = FileManager.default
   private(set) var separator: String
   private(set) var encoding: String.Encoding = .utf8
   let storageUrl: URL
-
-  public static func fileExists(_ path: String) -> Bool {
-    FileManager.default.fileExists(atPath: path)
-  }
 
   public static func fileExists(_ url: URL) -> Bool {
     FileManager.default.fileExists(atPath: url.path)
@@ -74,7 +61,6 @@ public actor BasicTextPersistor<Element: StringPersistable> {
   }
 
   //this is async for the actor, not the file i/o
-  @available(macOS 13.0, iOS 16.0, *)
   public func retrieve() async throws -> [Element] {
     let string = try String(contentsOf: storageUrl)
     return string.split(separator: separator).compactMap({
@@ -82,7 +68,6 @@ public actor BasicTextPersistor<Element: StringPersistable> {
     })
   }
 
-  @available(macOS 13.0, iOS 16.0, *)
   public func retrieveAvailable() async -> [Element] {
     do {
       return try await retrieve()
