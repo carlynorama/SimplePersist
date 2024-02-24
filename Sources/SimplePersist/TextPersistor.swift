@@ -11,20 +11,11 @@ public actor BasicTextPersistor<Element: StringPersistable> {
   private(set) var encoding: String.Encoding = .utf8
   let storageUrl: URL
 
-  public static func fileExists(_ url: URL) -> Bool {
-    FileManager.default.fileExists(atPath: url.path)
-  }
-
-  @discardableResult
-  public static func touch(_ url: URL) -> Bool {
-    FileManager.default.createFile(atPath: url.path, contents: nil)
-  }
-
   public init(storageUrl: URL, separator: String = "\n") {
     self.storageUrl = storageUrl
     self.separator = separator
-    if !Self.fileExists(storageUrl) {
-      Self.touch(storageUrl)
+    if !FileIO.fileExists(storageUrl) {
+      FileIO.touch(storageUrl)
     }
   }
 
@@ -39,7 +30,7 @@ public actor BasicTextPersistor<Element: StringPersistable> {
   //Do you need appends to be atomic? That is, as supported by the O_APPEND flag for open.
   public func append(_ item: Element) async throws {
     if let data = "\(separator)\(item.description)".data(using: encoding) {
-      try appendData(data: data)
+        try FileIO.append(data, to:storageUrl)
     } else {
       throw PersistorError.stringNotDataEncodable
     }
@@ -47,17 +38,10 @@ public actor BasicTextPersistor<Element: StringPersistable> {
 
   public func append(contentsOf: [Element]) async throws {
     if let data = "\(separator)\(makeBlob(from: contentsOf))".data(using: encoding) {
-      try appendData(data: data)
+      try FileIO.append(data, to:storageUrl)
     } else {
       throw PersistorError.stringNotDataEncodable
     }
-  }
-
-  private func appendData(data: Data) throws {
-    let fileHandle = try FileHandle(forWritingTo: storageUrl)
-    fileHandle.seekToEndOfFile()
-    fileHandle.write(data)
-    fileHandle.closeFile()
   }
 
   //this is async for the actor, not the file i/o
@@ -77,26 +61,11 @@ public actor BasicTextPersistor<Element: StringPersistable> {
   }
 
   public func lastModified() throws -> Date {
-    //works in linux?
-    //if let date = try storageUrl.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
-
-    let attribute = try fm.attributesOfItem(atPath: storageUrl.path)
-    if let date = attribute[FileAttributeKey.modificationDate] as? Date {
-      return date
-    } else {
-      throw PersistorError.fileAttributeUnavailable("modificationDate")
-    }
+      try FileIO.lastModified(of:storageUrl)
   }
 
-  //The corresponding value is an NSNumber object containing an unsigned long long.
-  //Important
-  //If the file has a resource fork, the returned value does not include the size of the resource fork.
+
   public func size() throws -> Int {
-    let attribute = try FileManager.default.attributesOfItem(atPath: storageUrl.path)
-    if let size = attribute[FileAttributeKey.size] as? Int {
-      return size
-    } else {
-      throw PersistorError.fileAttributeUnavailable("size")
-    }
+      try FileIO.size(of:storageUrl)
   }
 }

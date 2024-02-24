@@ -7,7 +7,7 @@
 
 #if !canImport(UniformTypeIdentifiers)
 
-  //Bad implementation as a stop gap to make existing functionality work. What is the status of
+  //Sparse implementation as a stop gap to make existing functionality work. What is the status of
   //UniformTypeIdentifiers???
 
   //Used functions
