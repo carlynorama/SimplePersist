@@ -1,60 +1,65 @@
-//
-//  FileIO.swift
-//
-//
-//  Created by Carlyn Maw on 4/19/23.
-//  Updated 02/2024
-//
-
-//#if os(Linux)
-//import Glibc
-//#else
-//import Darwin.C
-//
-//#endif
-
 import Foundation
 
-struct JSONPersistor {
-    
-    let fm: FileManager
-    //let timeStampFormat:String
-    //let dateFormatter:DateFormatter
-    let defaultDirectory = ""
-    
-    init() {
-        self.fm = FileManager.default
-        // self.timeStampFormat = "YYYYMMdd'T'HHmmss"
-        // self.dateFormatter = DateFormatter()
-        // self.dateFormatter.dateFormat =  self.timeStampFormat
+//:FilePersistorProtocol
+public actor JSONPersistor<Element: Codable> {
+  typealias Element = Element
+  private let fm = FileManager.default
+  private var encoder: JSONEncoder
+  private var decoder: JSONDecoder
+  let storageUrl: URL
+
+  public init(storageUrl: URL) {
+    self.storageUrl = storageUrl
+
+    var decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    decoder.dateDecodingStrategy = .iso8601
+
+    self.decoder = decoder
+
+    var encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+
+    encoder.outputFormatting = .sortedKeys
+    encoder.outputFormatting.formUnion(.withoutEscapingSlashes)
+    encoder.outputFormatting.formUnion(.prettyPrinted)
+
+    self.encoder = encoder
+
+    if !FileIO.fileExists(storageUrl) {
+      FileIO.touch(storageUrl)
     }
-    
-    //Newer style, check against new Foundation.
-    //TODO: Worth it to make formatter for the struct?
-    @available(macOS 12.0, *)
-    func timeStamp() -> String {
-        return Date.now.ISO8601Format()
-        //let date = Date.now
-        //return dateFormatter.string(from: date)
+  }
+
+  public func write(contentsOf: [Element]) throws {
+    let data = try encoder.encode(contentsOf)
+    try data.write(to: storageUrl)
+  }
+
+  //this is async for the actor, not the file i/o
+  public func retrieve() throws -> [Element] {
+    let data = try Data(contentsOf: storageUrl)
+    let decoded = try decoder.decode([Element].self, from: data)
+    return decoded
+  }
+
+  public func retrieveAvailable() -> [Element] {
+    do {
+      return try retrieve()
+    } catch {
+      return []
     }
-    
-    @available(macOS 13.0, iOS 16.0, *)
-    func urlInDefault(
-        toFileNamed documentName: String,
-        inFolder folderName: String,
-        withTimeStamp: Bool,
-        withExtension ext: String
-    ) {
-        FileIO.makeURL(
-            toFileNamed: documentName,
-            inFolder: folderName,
-            withTimeStamp: withTimeStamp,
-            withExtension: ext,
-            relativeTo: defaultDirectory)
-    }
-    
-   
-    
+  }
+
+  public func clearAll() throws {
+    try "".write(to: storageUrl, atomically: true, encoding: .utf8)
+  }
+
+  public func lastModified() throws -> Date {
+    try FileIO.lastModified(of: storageUrl)
+  }
+
+  public func size() throws -> Int {
+    try FileIO.size(of: storageUrl)
+  }
 }
-
-

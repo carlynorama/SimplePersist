@@ -5,7 +5,8 @@ public protocol StringPersistable: LosslessStringConvertible, Sendable {
   init?(_ description: some StringProtocol)
 }
 
-public actor BasicTextPersistor<Element: StringPersistable> {
+public actor BasicTextPersistor<Element: StringPersistable>: FilePersistorProtocol {
+  typealias Element = Element
   private let fm = FileManager.default
   private(set) var separator: String
   private(set) var encoding: String.Encoding = .utf8
@@ -23,49 +24,56 @@ public actor BasicTextPersistor<Element: StringPersistable> {
     array.map { $0.description }.joined(separator: separator)
   }
 
-  public func write(contentsOf: [StringPersistable]) async throws {
+  public func write(contentsOf: [StringPersistable]) throws {
+    try makeBlob(from: contentsOf).write(to: storageUrl, atomically: true, encoding: .utf8)
+  }
+
+  public func write(contentsOf: [Element]) throws {
     try makeBlob(from: contentsOf).write(to: storageUrl, atomically: true, encoding: .utf8)
   }
 
   //Do you need appends to be atomic? That is, as supported by the O_APPEND flag for open.
-  public func append(_ item: Element) async throws {
+  public func append(_ item: Element) throws {
     if let data = "\(separator)\(item.description)".data(using: encoding) {
-        try FileIO.append(data, to:storageUrl)
+      try FileIO.append(data, to: storageUrl)
     } else {
       throw PersistorError.stringNotDataEncodable
     }
   }
 
-  public func append(contentsOf: [Element]) async throws {
+  public func append(contentsOf: [Element]) throws {
     if let data = "\(separator)\(makeBlob(from: contentsOf))".data(using: encoding) {
-      try FileIO.append(data, to:storageUrl)
+      try FileIO.append(data, to: storageUrl)
     } else {
       throw PersistorError.stringNotDataEncodable
     }
   }
 
   //this is async for the actor, not the file i/o
-  public func retrieve() async throws -> [Element] {
+  public func retrieve() throws -> [Element] {
     let string = try String(contentsOf: storageUrl)
     return string.split(separator: separator).compactMap({
       Element.init($0)
     })
   }
 
-  public func retrieveAvailable() async -> [Element] {
+  public func retrieveAvailable() -> [Element] {
     do {
-      return try await retrieve()
+      return try retrieve()
     } catch {
       return []
     }
   }
 
-  public func lastModified() throws -> Date {
-      try FileIO.lastModified(of:storageUrl)
+  public func clearAll() throws {
+    try "".write(to: storageUrl, atomically: true, encoding: .utf8)
   }
 
+  public func lastModified() throws -> Date {
+    try FileIO.lastModified(of: storageUrl)
+  }
 
   public func size() throws -> Int {
-      try FileIO.size(of:storageUrl)
+    try FileIO.size(of: storageUrl)
   }
 }

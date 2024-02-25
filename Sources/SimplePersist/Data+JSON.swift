@@ -5,6 +5,8 @@
 //  Created by Carlyn Maw on 2/5/23.
 //
 
+// Currently here mostly as reference.
+
 import Foundation
 
 private struct NullableObject<Base: Decodable>: Decodable {
@@ -80,7 +82,7 @@ extension Data {
     return results.map { $0.value }
   }
 
-  //from Ed
+  //from Ed Arenberg
   public func verboseDecode<T: Decodable>(decoder: JSONDecoder = JSONDecoder()) -> T? {
     let data = self
     //    decoder.keyDecodingStrategy = .convertFromSnakeCase

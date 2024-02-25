@@ -4,14 +4,12 @@
 import Foundation
 
 enum PersistorError: Error {
-    case unknownError(_ message: String)
-    case fileAttributeUnavailable(_ attributeName: String)
-    case stringNotDataEncodable
-    case noFileAtURL(_ urlString:String)
+  case unknownError(_ message: String)
+  case stringNotDataEncodable
 }
 
 extension PersistorError {
-    init(_ message: String) {
-        self = .unknownError(message)
-    }
+  init(_ message: String) {
+    self = .unknownError(message)
+  }
 }
