@@ -1,11 +1,11 @@
 import Foundation
 
-public protocol StringPersistable: LosslessStringConvertible, Sendable {
+public protocol StringPersistable: LosslessStringConvertible, Sendable, Codable {
   //the losses strings can't have \n
   init?(_ description: some StringProtocol)
 }
 
-public actor BasicTextPersistor<Element: StringPersistable>: FilePersistorProtocol {
+public actor BasicTextPersistor<Element: StringPersistable>: LinePersisting {
   typealias Element = Element
   private let fm = FileManager.default
   private(set) var separator: String

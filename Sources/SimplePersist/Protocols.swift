@@ -7,7 +7,7 @@
 
 import Foundation
 
-protocol FilePersistorProtocol<Element> {
+protocol FilePersisting<Element> {
   associatedtype Element
 
   func lastModified() async throws -> Date
@@ -26,9 +26,12 @@ protocol FilePersistorProtocol<Element> {
 }
 
 //appending is cheap when its lines. Potentially expensive if actually an insertion.
-protocol LinePersistorProtocol<Element>: FilePersistorProtocol {
+protocol LinePersisting<Element>: FilePersisting {
   associatedtype Element
 
   func append(_ item: Element) async throws
   func append(contentsOf: [Element]) async throws
 }
+
+
+

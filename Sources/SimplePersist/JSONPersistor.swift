@@ -1,7 +1,7 @@
 import Foundation
 
 //:FilePersistorProtocol
-public actor JSONPersistor<Element: Codable> {
+public actor JSONPersistor<Element: Codable>:FilePersisting {
   typealias Element = Element
   private let fm = FileManager.default
   private var encoder: JSONEncoder
@@ -11,13 +11,13 @@ public actor JSONPersistor<Element: Codable> {
   public init(storageUrl: URL) {
     self.storageUrl = storageUrl
 
-    var decoder = JSONDecoder()
+    let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
     decoder.dateDecodingStrategy = .iso8601
 
     self.decoder = decoder
 
-    var encoder = JSONEncoder()
+    let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
 
     encoder.outputFormatting = .sortedKeys
