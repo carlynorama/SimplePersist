@@ -11,8 +11,27 @@ import Foundation
 fileprivate protocol _DictionaryIsEncodableMarker { }
 extension Dictionary: _DictionaryIsEncodableMarker where Key == String, Value: Encodable { }
 
+fileprivate protocol LCEncoder {
+    var codingPath: [CodingKey] { get }
+    var options: LineMaker._Options { get }
+    var encoderInstance: LineEncoderImplementation  { get }
+}
+
 
 final class LineMaker {
+    
+    struct Constants {
+        let nullText:[UInt8] = ._none
+    }
+    
+    var nullText:String {
+        String(bytes: self.options.constants.nullText, encoding: .utf8)!
+    }
+    
+    public struct OutputFormatting {
+        let constants:Constants = Constants()
+    }
+    
     //--------------------------------------------------------- FROM JSONEncoder
     public enum DateEncodingStrategy {
         /// Defer to `Date` for choosing an encoding. This is the default strategy.
@@ -156,6 +175,7 @@ final class LineMaker {
     
     /// Options set on the top-level encoder to pass down the encoding hierarchy.
     fileprivate struct _Options {
+        let constants:Constants = Constants()
         let dateEncodingStrategy: DateEncodingStrategy
         let dataEncodingStrategy: DataEncodingStrategy
         let nonConformingFloatEncodingStrategy: NonConformingFloatEncodingStrategy
@@ -182,12 +202,14 @@ final class LineMaker {
     
     //MARK: Encode
     public func encode<T: Encodable>(_ value: T) throws -> Data {
-        let value:EncodedValue = try encodeValue(value)
-        let writer = EncodedValue.Writer()
+        let value:LCEncodedValue = try encodeValue(value)
+        let itemWriter = LCEncodedValue.Writer(options:OutputFormatting()) //no options yet.
+        let bytes = itemWriter.writeValue(value)
+        return Data(bytes)
     }
     
     //This is all about making sure the individual items can be stringified.
-    func encodeValue<T: Encodable>(_ value: T) throws -> EncodedValue {
+    func encodeValue<T: Encodable>(_ value: T) throws -> LCEncodedValue {
         let encoder = LineEncoderImplementation(options: options, codingPath: [])
         guard let topLevel = try encoder.wrapEncodable(value, additionalKey: nil) else {
             //TODO: This in not my error.
@@ -210,35 +232,61 @@ fileprivate final class LineEncoderImplementation {
     }
     
     var options:LineMaker._Options
+    var WIP:LCWorkInProgress?
+    
     
     //needed for Encoder Implementation.
     var codingPath: [CodingKey]
     var userInfo: [CodingUserInfoKey : Any]  { [:] }
     
-    var thisInstance:Self {
-        self
-    }
-    
-    var singleValue: EncodedValue?
+    //var singleValue: LCEncodedValue?
     //var array: JSONFuture.RefArray?
     //var object: JSONFuture.RefObject?
     
-    var value: EncodedValue? {
-//        if let object = self.object {
-//            return .object(object.values)
-//        }
-//        if let array = self.array {
-//            return .array(array.values)
-//        }
-        return self.singleValue
+    var value: LCEncodedValue? {
+        if let WIP {
+            switch WIP {
+                
+            case .value(let value):
+                return value
+            case .encoder(let encoder):
+                return encoder.value
+            case .nestedObject(let object):
+                return .object(object.values)
+            }
+        } else {
+            return nil
+        }
+        
+        //        //        if let object = self.object {
+        //        //            return .object(object.values)
+        //        //        }
+        //        //        if let array = self.array {
+        //        //            return .array(array.values)
+        //        //        }
+        //        return self.singleValue
     }
     
 }
-    
+
 extension LineEncoderImplementation: Encoder {
     
     func container<Key>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> where Key : CodingKey {
+        //fatalError()
+        //return KeyedEncodingContainer(LineEncoderKEC(encoder: self, codingPath: codingPath))
+        if let WIP {
+            if case let .nestedObject(object) = WIP {
+                return KeyedEncodingContainer(LineEncoderKEC(codingPath: codingPath, object: object))
+            }
+        } else {
+            self.WIP = LCWorkInProgress.nestedObject(LCWorkInProgress.ObjectBox())
+            if case let .nestedObject(object) = WIP! {
+                return KeyedEncodingContainer(LineEncoderKEC(codingPath: codingPath, object: object))
+            }
+        }
         fatalError()
+        
+        
     }
     
     func unkeyedContainer() -> UnkeyedEncodingContainer {
@@ -246,69 +294,337 @@ extension LineEncoderImplementation: Encoder {
     }
     
     func singleValueContainer() -> SingleValueEncodingContainer {
-        fatalError()
+        return LineEncoderSVEC(encoderInstance: self, codingPath: codingPath)
+    }
+    
+    
+}
+
+extension LineEncoderImplementation: LCEncoder {
+    var encoderInstance: LineEncoderImplementation {
+        self
     }
     
 }
-//MARK: Writer
-fileprivate extension LineEncoderImplementation {
-    struct Writer {
-        //let options: SomeFutureOptionSet
+
+
+private enum LCWorkInProgress {
+    case value(LCEncodedValue)
+    case encoder(LineEncoderImplementation)
+    //case nestedArray([LCWorkInProgress])
+    case nestedObject(ObjectBox)
+    
+    final class ObjectBox {
+        //private(set) var dict: [String: LCWorkInProgress] = [:]
         
-        func writeValue(_ value: EncodedValue) -> [UInt8] {
-            var bytes = [UInt8]()
-            //options handled
-            self.writeValue(value, into: &bytes)
+        private(set) var dict: [String: LCWorkInProgress] = [:]
+        init() {
+            //self.dict.reserveCapacity(20)
         }
         
-        private func writeValue(_ value: EncodedValue, into bytes: inout [UInt8]) {
-            switch value {
-            case .null:
-                bytes.append(contentsOf: [UInt8]._null)
-            case .bool(true):
-                bytes.append(contentsOf: [UInt8]._true)
-            case .bool(false):
-                bytes.append(contentsOf: [UInt8]._false)
-            case .string(let string):
-                bytes.append(contentsOf: string.utf8)
-                //JSON needs some specific stuff see Line 1109 in JSONEncoder.swift
-                //self.encodeString(string, to: &bytes)
-            case .number(let string):
-                bytes.append(contentsOf: string.utf8)
-            case .array(let array):
-                fatalError()
-                //                        var iterator = array.makeIterator()
-                //                        bytes.append(._openbracket)
-                //                        // we don't like branching, this is why we have this extra
-                //                        if let first = iterator.next() {
-                //                            self.writeValue(first, into: &bytes)
-                //                        }
-                //                        while let item = iterator.next() {
-                //                            bytes.append(._comma)
-                //                            self.writeValue(item, into:&bytes)
-                //                        }
-                //                        bytes.append(._closebracket)
-            case .object(let dict):
-                fatalError()
-                //                        if #available(macOS 10.13, *), options.contains(.sortedKeys) {
-                //                            let sorted = dict.sorted { $0.key.compare($1.key, options: [.caseInsensitive, .diacriticInsensitive, .forcedOrdering, .numeric, .widthInsensitive]) == .orderedAscending }
-                //                            self.writeObject(sorted, into: &bytes)
-                //                        } else {
-                //                            self.writeObject(dict, into: &bytes)
-                //                        }
+        @inline(__always) func set(_ value: LCEncodedValue, for key: String) {
+            self.dict[key] = .value(value)
+        }
+        
+        var values: [String: LCEncodedValue] {
+            self.dict.mapValues { (future) -> LCEncodedValue in
+                switch future {
+                case .value(let value):
+                    return value
+                    //                case .nestedArray(let array):
+                    //                    return .array(array.values)
+                case .nestedObject(let object):
+                    return .object(object.values)
+                case .encoder(let encoder):
+                    return encoder.value ?? .object([:])
+                }
             }
         }
         
-       
+    }
+    
+}
+
+
+fileprivate struct LineEncoderKEC<Key: CodingKey>: KeyedEncodingContainerProtocol {
+    var codingPath: [CodingKey]
+    
+    //    var encoderInstance: LineEncoderImplementation
+    //            var options: LineMaker._Options {
+    //                encoderInstance.options
+    //            }
+    //            var codingPath: [CodingKey]
+    
+    var object:LCWorkInProgress.ObjectBox
+    
+    //            init(encoder: LineEncoderImplementation, codingPath: [CodingKey]) {
+    //                self.encoderInstance = encoder
+    //                if let WIP = encoderInstance.WIP {
+    //                    if case let .nestedObject(object) = WIP {
+    //                        self.object = object
+    //                    } else {
+    //                        fatalError()
+    //                    }
+    //                } else {
+    //                    self.object = LCWorkInProgress.ObjectBox()
+    //                }
+    //                self.codingPath = codingPath
+    //            }
+    //
+    //            // used for nested containers
+    //            init(encoder: LineEncoderImplementation, object: LCWorkInProgress.ObjectBox, codingPath: [CodingKey]) {
+    //                self.encoderInstance = encoder
+    //                self.object = object
+    //                self.codingPath = codingPath
+    //            }
+    
+    private func _converted(_ key: Key) -> CodingKey {
+        //        switch self.options.keyEncodingStrategy {
+        //        case .useDefaultKeys:
+        return key
+        //        case .convertToSnakeCase:
+        //            let newKeyString = JSONEncoder.KeyEncodingStrategy._convertToSnakeCase(key.stringValue)
+        //            return _JSONKey(stringValue: newKeyString, intValue: key.intValue)
+        //        case .custom(let converter):
+        //            return converter(codingPath + [key])
+        //        }
+    }
+    
+    
+    mutating func encodeNil(forKey key: Key) throws {
+        self.object.set(.null, for: self._converted(key).stringValue)
+    }
+    
+    mutating func encode(_ value: Bool, forKey key: Key) throws {
+        self.object.set(.bool(value), for: self._converted(key).stringValue)
+    }
+    
+    mutating func encode(_ value: String, forKey key: Key) throws {
+        self.object.set(.string(value), for: self._converted(key).stringValue)
+    }
+    
+    mutating func encode(_ value: Double, forKey key: Key) throws {
+        try encodeFloatingPoint(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: Float, forKey key: Key) throws {
+        try encodeFloatingPoint(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: Int, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: Int8, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: Int16, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: Int32, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: Int64, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: UInt, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: UInt8, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: UInt16, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: UInt32, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode(_ value: UInt64, forKey key: Key) throws {
+        try encodeFixedWidthInteger(value, key: self._converted(key))
+    }
+    
+    mutating func encode<T>(_ value: T, forKey key: Key) throws where T : Encodable {
+        fatalError()
+    }
+    
+    mutating func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type, forKey key: Key) -> KeyedEncodingContainer<NestedKey> where NestedKey : CodingKey {
+        fatalError()
+    }
+    
+    mutating func nestedUnkeyedContainer(forKey key: Key) -> UnkeyedEncodingContainer {
+        fatalError()
+    }
+    
+    mutating func superEncoder() -> Encoder {
+        fatalError()
+    }
+    
+    mutating func superEncoder(forKey key: Key) -> Encoder {
+        fatalError()
+    }
+    
+    
+}
+
+extension LineEncoderKEC {
+    @inline(__always) private mutating func encodeFloatingPoint<F: FloatingPoint & CustomStringConvertible>(_ float: F, key: CodingKey) throws {
+        
+        //TODO: Fix to use function.
+        var string = float.description
+        if string.hasSuffix(".0") {
+            string.removeLast(2)
+        }
+        self.object.set(.number(string), for: key.stringValue)
+    }
+    
+    @inline(__always) private mutating func encodeFixedWidthInteger<N: FixedWidthInteger>(_ value: N, key: CodingKey) throws {
+        self.object.set(.number(value.description), for: key.stringValue)
+    }
+}
+
+//MARK: SingleValueEncoder
+private struct LineEncoderSVEC: SingleValueEncodingContainer, LCEncoder {
+    
+    var encoderInstance: LineEncoderImplementation
+    var options: LineMaker._Options {
+        encoderInstance.options
+    }
+    var codingPath: [CodingKey]
+    
+    
+    //    func preconditionCanEncodeNewValue() {
+    //        precondition(self.impl.singleValue == nil, "Attempt to encode value through single value container when previously value already encoded.")
+    //    }
+    
+    
+    mutating func encodeNil() throws {
+        self.encoderInstance.WIP = .value(.null)
+    }
+    
+    mutating func encode(_ value: Bool) throws {
+        self.encoderInstance.WIP = .value(.bool(value))
+    }
+    
+    mutating func encode(_ value: String) throws {
+        self.encoderInstance.WIP = .value(.string(value))
+    }
+    
+    mutating func encode(_ value: Double) throws {
+        try encodeFloatingPoint(value)
+    }
+    
+    mutating func encode(_ value: Float) throws {
+        try encodeFloatingPoint(value)
+    }
+    
+    mutating func encode(_ value: Int) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode(_ value: Int8) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode(_ value: Int16) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode(_ value: Int32) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode(_ value: Int64) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode(_ value: UInt) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode(_ value: UInt8) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode(_ value: UInt16) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode(_ value: UInt32) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode(_ value: UInt64) throws {
+        try encodeFixedWidthInteger(value)
+    }
+    
+    mutating func encode<T>(_ value: T) throws where T : Encodable {
+        fatalError()
+    }
+    
+    
+}
+
+extension LineEncoderSVEC {
+    @inline(__always) private mutating func encodeFixedWidthInteger<N: FixedWidthInteger>(_ value: N) throws {
+        //self.preconditionCanEncodeNewValue()
+        self.encoderInstance.WIP = .value(.number(value.description))
+    }
+    
+    @inline(__always) private mutating func encodeFloatingPoint<F: FloatingPoint & CustomStringConvertible>(_ float: F) throws {
+        //self.preconditionCanEncodeNewValue()
+        let value = try self.wrapFloat(float, for: nil)
+        self.encoderInstance.WIP = .value(value)
     }
 }
 
 
-//MARK: Item -> String
-fileprivate extension LineEncoderImplementation {
+
+
+fileprivate extension  LCEncoder {
+    //JSONEncoder.swift#L465
+    @inline(__always) func wrapFloat<F: FloatingPoint & CustomStringConvertible>(_ float: F, for additionalKey: CodingKey?) throws -> LCEncodedValue {
+        guard !float.isNaN, !float.isInfinite else {
+            if case .convertToString(let posInfString, let negInfString, let nanString) = self.options.nonConformingFloatEncodingStrategy {
+                switch float {
+                case F.infinity:
+                    return .string(posInfString)
+                case -F.infinity:
+                    return .string(negInfString)
+                default:
+                    // must be nan in this case
+                    return .string(nanString)
+                }
+            }
+            
+            var path = self.codingPath
+            if let additionalKey = additionalKey {
+                path.append(additionalKey)
+            }
+            
+            //TODO: Not my error.
+            throw EncodingError.invalidValue(float, .init(
+                codingPath: path,
+                debugDescription: "Unable to encode \(F.self).\(float)."
+            ))
+        }
+        
+        var string = float.description
+        if string.hasSuffix(".0") {
+            string.removeLast(2)
+        }
+        return .number(string)
+    }
     
     //changed "for" to additional key because for was ambiguous.
-    func wrapEncodable<E: Encodable>(_ encodable: E, additionalKey: CodingKey?) throws -> EncodedValue? {
+    func wrapEncodable<E: Encodable>(_ encodable: E, additionalKey: CodingKey?) throws -> LCEncodedValue? {
         switch encodable {
         case let date as Date:
             return try self.wrapDate(date, additionalKey: additionalKey)
@@ -318,8 +634,8 @@ fileprivate extension LineEncoderImplementation {
             return .string(url.absoluteString)
         case let decimal as Decimal:
             return .number(decimal.description)
-//        case let object as _DictionaryIsEncodableMarker:
-//            return try self.wrapObject(object as! [String: Encodable], for: additionalKey)
+            //        case let object as _DictionaryIsEncodableMarker:
+            //            return try self.wrapObject(object as! [String: Encodable], for: additionalKey)
         default:
             let encoder = self.getEncoder(for: additionalKey)
             try encodable.encode(to: encoder)
@@ -327,7 +643,7 @@ fileprivate extension LineEncoderImplementation {
         }
     }
     
-    func wrapDate(_ date: Date, additionalKey: CodingKey?) throws -> EncodedValue {
+    func wrapDate(_ date: Date, additionalKey: CodingKey?) throws -> LCEncodedValue {
         switch self.options.dateEncodingStrategy {
         case .deferredToDate:
             let encoder = self.getEncoder(for: additionalKey)
@@ -358,7 +674,7 @@ fileprivate extension LineEncoderImplementation {
         }
     }
     
-    func wrapData(_ data: Data, additionalKey: CodingKey?) throws -> EncodedValue {
+    func wrapData(_ data: Data, additionalKey: CodingKey?) throws -> LCEncodedValue {
         switch self.options.dataEncodingStrategy {
         case .deferredToData:
             let encoder = self.getEncoder(for: additionalKey)
@@ -377,33 +693,33 @@ fileprivate extension LineEncoderImplementation {
         }
     }
     
-//    func wrapObject(_ object: [String: Encodable], for additionalKey: CodingKey?) throws -> EncodedValue {
-//        var baseCodingPath = self.codingPath
-//        if let additionalKey = additionalKey {
-//            baseCodingPath.append(additionalKey)
-//        }
-//        var result = [String: EncodedValue]()
-//        result.reserveCapacity(object.count)
-//        
-//        try object.forEach { (key, value) in
-//            var elemCodingPath = baseCodingPath
-//            elemCodingPath.append(_PotentialNumericKey(stringValue: key, intValue: nil))
-//            let encoder = Self(options: self.options, codingPath: elemCodingPath)
-//            
-//            result[key] = try encoder.wrapUntyped(value)
-//        }
-//        
-//        return .object(result)
-//    }
+    //    func wrapObject(_ object: [String: Encodable], for additionalKey: CodingKey?) throws -> EncodedValue {
+    //        var baseCodingPath = self.codingPath
+    //        if let additionalKey = additionalKey {
+    //            baseCodingPath.append(additionalKey)
+    //        }
+    //        var result = [String: EncodedValue]()
+    //        result.reserveCapacity(object.count)
+    //
+    //        try object.forEach { (key, value) in
+    //            var elemCodingPath = baseCodingPath
+    //            elemCodingPath.append(_PotentialNumericKey(stringValue: key, intValue: nil))
+    //            let encoder = Self(options: self.options, codingPath: elemCodingPath)
+    //
+    //            result[key] = try encoder.wrapUntyped(value)
+    //        }
+    //
+    //        return .object(result)
+    //    }
     
     func getEncoder(for additionalKey: CodingKey?) -> LineEncoderImplementation {
         if let additionalKey = additionalKey {
             var newCodingPath = self.codingPath
             newCodingPath.append(additionalKey)
-            return Self(options: self.options, codingPath: newCodingPath)
+            return LineEncoderImplementation(options: self.options, codingPath: newCodingPath)
         }
         
-        return self.thisInstance
+        return self.encoderInstance
     }
 }
 
@@ -411,17 +727,17 @@ fileprivate extension LineEncoderImplementation {
 
 
 
-enum EncodedValue: Equatable {
+enum LCEncodedValue: Equatable {
     case string(String)
     case number(String)
     case bool(Bool)
     case null
     
-    case array([EncodedValue])
-    case object([String: EncodedValue])
+    case array([LCEncodedValue])
+    case object([String: LCEncodedValue])
 }
 
-extension EncodedValue {
+extension LCEncodedValue {
     var isValue: Bool {
         switch self {
         case .array, .object:
@@ -441,7 +757,7 @@ extension EncodedValue {
     }
 }
 
-extension EncodedValue {
+extension LCEncodedValue {
     var debugDataTypeDescription: String {
         switch self {
         case .array:
@@ -459,6 +775,84 @@ extension EncodedValue {
         }
     }
 }
+
+//MARK: Writer
+fileprivate extension LCEncodedValue {
+    struct Writer {
+        let options: LineMaker.OutputFormatting
+        
+        func writeValue(_ value: LCEncodedValue) -> [UInt8] {
+            var bytes = [UInt8]()
+            //options handled
+            self.writeValue(value, into: &bytes)
+            return bytes
+        }
+        
+        private func writeValue(_ value: LCEncodedValue, into bytes: inout [UInt8]) {
+            switch value {
+            case .null:
+                bytes.append(contentsOf: options.constants.nullText)
+            case .bool(true):
+                bytes.append(contentsOf: [UInt8]._true)
+            case .bool(false):
+                bytes.append(contentsOf: [UInt8]._false)
+            case .string(let string):
+                bytes.append(contentsOf: string.utf8)
+                //JSON needs some specific stuff see Line 1109 in JSONEncoder.swift
+                //self.encodeString(string, to: &bytes)
+            case .number(let string):
+                bytes.append(contentsOf: string.utf8)
+            case .array(let array):
+                fatalError()
+                //                        var iterator = array.makeIterator()
+                //                        bytes.append(._openbracket)
+                //                        // we don't like branching, this is why we have this extra
+                //                        if let first = iterator.next() {
+                //                            self.writeValue(first, into: &bytes)
+                //                        }
+                //                        while let item = iterator.next() {
+                //                            bytes.append(._comma)
+                //                            self.writeValue(item, into:&bytes)
+                //                        }
+                //                        bytes.append(._closebracket)
+            case .object(let dict):
+                //                fatalError()
+                //            if #available(macOS 10.13, *), options.contains(.sortedKeys) {
+                //                let sorted = dict.sorted { $0.key.compare($1.key, options: [.caseInsensitive, .diacriticInsensitive, .forcedOrdering, .numeric, .widthInsensitive]) == .orderedAscending }
+                //                self.writeObject(sorted, into: &bytes)
+                //            } else {
+                writeObject(dict, into: &bytes)
+                //            }
+                //            }
+            }
+            
+            func writeObject<Object: Sequence>(_ object: Object, into bytes: inout [UInt8], depth: Int = 0)
+            where Object.Element == (key: String, value: LCEncodedValue)
+            {
+                var iterator = object.makeIterator()
+                bytes.append(._openbrace)
+                if let (key, value) = iterator.next() {
+                    //self.encodeString(key, to: &bytes)
+                    bytes.append(contentsOf: key.utf8)
+                    bytes.append(._colon)
+                    self.writeValue(value, into: &bytes)
+                }
+                while let (key, value) = iterator.next() {
+                    bytes.append(._comma)
+                    // key
+                    //self.encodeString(key, to: &bytes)
+                    bytes.append(contentsOf: key.utf8)
+                    bytes.append(._colon)
+                    
+                    self.writeValue(value, into: &bytes)
+                }
+                bytes.append(._closebrace)
+            }
+            
+        }
+    }
+}
+
 
 
 //===----------------------------------------------------------------------===//
