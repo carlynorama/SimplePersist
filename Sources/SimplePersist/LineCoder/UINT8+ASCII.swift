@@ -17,6 +17,7 @@ extension UInt8 {
 
     internal static let _colon = UInt8(ascii: ":")
     internal static let _comma = UInt8(ascii: ",")
+    internal static let _period = UInt8(ascii: ".")
 
     internal static let _openbrace = UInt8(ascii: "{")
     internal static let _closebrace = UInt8(ascii: "}")

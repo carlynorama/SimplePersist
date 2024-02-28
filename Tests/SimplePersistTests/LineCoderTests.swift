@@ -50,8 +50,43 @@ final class LineCoderTests: XCTestCase {
     }
     
 
-    func testSingleValues() throws {
-        let encoder = LineMaker()
+//    func testSingleValues() throws {
+//        let encoder = LineMaker()
+//
+//        let toEncodeInt = Int.random(in: Int.min...Int.max)
+//        let toEncodeText = "hello" //TODO: make random strings to test encodings in a different function.
+//        let toEncodeBool = Bool.random()
+//        let toEncodeDouble = Double.random(in: Double.leastNonzeroMagnitude...Double.greatestFiniteMagnitude)
+//        let toEncodeFloat = Float.random(in: Float.leastNonzeroMagnitude...Float.greatestFiniteMagnitude)
+//        let toEncodeInt32 = Int32.random(in: Int32.min...Int32.max)
+//        
+//        let toEncodeOptionalInt:Int? = nil
+//
+//        
+//        let encodedInt = try encoder.encode(toEncodeInt).utf8String
+//        let encodedText = try encoder.encode(toEncodeText).utf8String
+//        let encodedBool = try encoder.encode(toEncodeBool).utf8String
+//        
+//        let encodedDouble = try encoder.encode(toEncodeDouble).utf8String
+//        let encodedFloat = try encoder.encode(toEncodeFloat).utf8String
+//        let encodedInt32 = try encoder.encode(toEncodeInt32).utf8String
+//        
+//        let encodedOptionalInt = try encoder.encode(toEncodeOptionalInt).utf8String
+//        
+//        XCTAssertEqual(toEncodeInt.description, encodedInt)
+//        XCTAssertEqual(toEncodeText.description, encodedText)
+//        XCTAssertEqual(toEncodeBool.description, encodedBool)
+//        XCTAssertEqual(toEncodeDouble.description, encodedDouble)
+//        XCTAssertEqual(toEncodeFloat.description, encodedFloat)
+//        XCTAssertEqual(toEncodeInt32.description, encodedInt32)
+//        XCTAssertEqual(encoder.nullText, encodedOptionalInt)
+//        
+//        
+//    }
+    
+    
+    func testSingleValuesTwo() async throws {
+        let encoder = LineCoder()
 
         let toEncodeInt = Int.random(in: Int.min...Int.max)
         let toEncodeText = "hello" //TODO: make random strings to test encodings in a different function.
@@ -63,15 +98,15 @@ final class LineCoderTests: XCTestCase {
         let toEncodeOptionalInt:Int? = nil
 
         
-        let encodedInt = try encoder.encode(toEncodeInt).utf8String
-        let encodedText = try encoder.encode(toEncodeText).utf8String
-        let encodedBool = try encoder.encode(toEncodeBool).utf8String
+        let encodedInt = try await encoder.encode(toEncodeInt).utf8String
+        let encodedText = try await encoder.encode(toEncodeText).utf8String
+        let encodedBool = try await encoder.encode(toEncodeBool).utf8String
         
-        let encodedDouble = try encoder.encode(toEncodeDouble).utf8String
-        let encodedFloat = try encoder.encode(toEncodeFloat).utf8String
-        let encodedInt32 = try encoder.encode(toEncodeInt32).utf8String
+        let encodedDouble = try await encoder.encode(toEncodeDouble).utf8String
+        let encodedFloat = try await encoder.encode(toEncodeFloat).utf8String
+        let encodedInt32 = try await encoder.encode(toEncodeInt32).utf8String
         
-        let encodedOptionalInt = try encoder.encode(toEncodeOptionalInt).utf8String
+        let encodedOptionalInt = try await encoder.encode(toEncodeOptionalInt)
         
         XCTAssertEqual(toEncodeInt.description, encodedInt)
         XCTAssertEqual(toEncodeText.description, encodedText)
@@ -79,16 +114,17 @@ final class LineCoderTests: XCTestCase {
         XCTAssertEqual(toEncodeDouble.description, encodedDouble)
         XCTAssertEqual(toEncodeFloat.description, encodedFloat)
         XCTAssertEqual(toEncodeInt32.description, encodedInt32)
-        XCTAssertEqual(encoder.nullText, encodedOptionalInt)
+        XCTAssertEqual(Data(encoder.encoderConfig.nullValueOutput), encodedOptionalInt)
         
         
     }
     
-    func testSimpleObject() throws {
+    func testSimpleObject() async throws {
         //        let sub = TestSubStruct(numeral: 34, string: "world")
                 let testItem = TestStruct()
-                let encoder = LineMaker()
-                let encoded = try encoder.encode(testItem)
+                
+                let encoder = LineCoder()
+                let encoded = try await encoder.encode(testItem)
                 let string = String(bytes: encoded, encoding: .utf8)
                 XCTAssertEqual("12.hello", string)
     }
