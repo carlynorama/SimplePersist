@@ -30,6 +30,12 @@ enum FileIO {
       withIntermediateDirectories: withSubs)  //,
     //attributes: [FileAttributeKey : Any]?
   }
+    
+    public static func deleteFile(at url: URL) throws {
+        if fileManager.isDeletableFile(atPath: url.path()) {
+            try fileManager.removeItem(at: url)
+        }
+    }
 
   //Old School.
   static func timeStamp(forDate date: Date = Date(), withFormat: String = "YYYYMMdd'T'HHmmss")
