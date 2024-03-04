@@ -9,8 +9,7 @@ extension String: StringPersistable {
   }
 }
 
-final class SimplePersistTests: XCTestCase {
-  let file = Bundle.main.url(forResource: "lines", withExtension: "txt")
+final class TextPersistorTests: XCTestCase {
 
   //This test is less useful on Linux where Date's +0000 doesn't seem to be a thing.
   //Linux date doesn't go beyond the second.
@@ -31,26 +30,10 @@ final class SimplePersistTests: XCTestCase {
     XCTAssertLessThan(modDate, after, "\(after) was not after \(modDate)")
   }
 
-  func testTouch() {
-
-    //let bundlePath = Bundle.module.bundleURL
-    // .deletingLastPathComponent()
-    // .path()
-
-    let bundlePath = Bundle.module.bundleURL
-    let toTouch = bundlePath.appending(path: "touch.txt")
-    BasicTextPersistor<String>.touch(toTouch)
-
-    let demo = Bundle.module.url(forResource: "empty", withExtension: "txt")
-    XCTAssertNotNil(demo, "demo file not found \(String(describing:demo))")
-
-    let exists = Bundle.module.url(forResource: "touch", withExtension: "txt")
-    XCTAssertNotNil(exists, "touched file not found \(String(describing:exists))")
-  }
-
   func testInit() async throws {
-    let demo = Bundle.module.url(forResource: "strings", withExtension: "txt")
-    let persistor = BasicTextPersistor<String>(storageUrl: demo!)
+    let demo = try Resource(name: "strings", type: "txt")
+    //let demo = Bundle.module.url(forResource: "strings", withExtension: "txt")
+    let persistor = BasicTextPersistor<String>(storageUrl: demo.url)
     let values = try await persistor.retrieve()
     XCTAssertEqual(values[0], "hello", "expected hello, got \(values[0])")
   }
@@ -90,8 +73,9 @@ final class SimplePersistTests: XCTestCase {
   }
 
   func testSize() async throws {
-    let demo = Bundle.module.url(forResource: "strings", withExtension: "txt")!
-    let persistor = BasicTextPersistor<String>(storageUrl: demo)
+    let demo = try Resource(name: "strings", type: "txt")
+    //let demo = Bundle.module.url(forResource: "strings", withExtension: "txt")!
+    let persistor = BasicTextPersistor<String>(storageUrl: demo.url)
     let fileSize = try await persistor.size()
     XCTAssertEqual(fileSize, 30, "expected 30 got \(String(describing:fileSize))")
   }
